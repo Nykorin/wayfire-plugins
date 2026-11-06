@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<wayfire>
+	<plugin name="toplevel-capture">
+		<_short>Toplevel Image Capture Source</_short>
+		<_long>An implementation of the ext-foreign-toplevel-image-capture-source-v1 protocol, for capturing single windows through ext-image-copy-capture-v1. Needs the ext-toplevel plugin.</_long>
+		<category>Utility</category>
+	</plugin>
+</wayfire>
