@@ -34,3 +34,7 @@ Wayfire 0.11 sets up `ext-image-copy-capture-v1` with one capture source per out
 ```sh
 build/toplevel-capture/capture-toplevels /tmp/caps 2   # 2 frames per window; the second waits for new content
 ```
+
+## License
+
+MIT, the same license as Wayfire; see [LICENSE](LICENSE). `toplevel-capture`'s off-screen render is adapted from Wayfire's `view_interface_t::take_snapshot()` (Copyright (c) 2018 Iliya Bozhinov, MIT), as noted in the source.

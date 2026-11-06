@@ -1,6 +1,8 @@
 project('wayfire-plugins', 'cpp', 'c',
   version: '0.1.0',
-  meson_version: '>=0.60.0',
+  license: 'MIT',
+  license_files: 'LICENSE',
+  meson_version: '>=1.1.0',
   default_options: ['cpp_std=c++17', 'warning_level=2', 'buildtype=debugoptimized'])
 
 wayfire = dependency('wayfire', version: '>=0.11.0')
