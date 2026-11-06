@@ -5,6 +5,7 @@ Out-of-tree plugins for [Wayfire](https://wayfire.org), built against the instal
 | Plugin | What it does |
 |---|---|
 | [`toplevel-capture`](#toplevel-capture) | Window capture through `ext-foreign-toplevel-image-capture-source-v1`, for e.g. Noctalia's window switcher previews |
+| [`ext-workspace-bridge`](#ext-workspace-bridge) | Wayfire's workspace grids through `ext_workspace_v1`, for Noctalia's Workspace widget |
 
 ## Building and installing
 
@@ -14,9 +15,19 @@ ninja -C build
 sudo ninja -C build install     # sudo ninja -C build uninstall to remove
 ```
 
+Every plugin is built by default; leave one out with `-D<name>=false` at `meson setup` (e.g. `-Dtoplevel-capture=false` builds only ext-workspace-bridge, without toplevel-capture's extra dependencies). system-update's `build-sources.sh` builds ext-workspace-bridge for Wayfire + Noctalia this way.
+
 The plugins go to `/usr/lib/wayfire` and their metadata to `/usr/share/wayfire/metadata`. Pacman doesn't track these files, so after a Wayfire or wlroots update, rebuild and reinstall: a plugin built against the old version may fail to load, and Wayfire only notes that in its log. Then add the plugin's name to `plugins =` in `wayfire.ini`.
 
 To try a build without installing it, install to a prefix (`meson setup build-test --prefix /some/dir`) and run `desktop-sandbox.sh --prefix /some/dir`, after adding the plugin to the sandbox's own `wayfire.ini`.
+
+## ext-workspace-bridge
+
+Wayfire 0.11 doesn't offer `ext_workspace_v1`, which Noctalia's Workspace widget reads. This plugin offers it through wlroots' implementation (`wlr/types/wlr_ext_workspace_v1.h`).
+
+- **Model:** one workspace group per output, one workspace per cell of that output's workspace grid.
+- **Staying in step:** every Wayfire signal it listens to just reconciles the protocol state against Wayfire's actual state, so a signal arriving at an unexpected time doesn't leave it out of date.
+- Built with C++23, the standard Wayfire itself is built with; the other plugins use C++17.
 
 ## toplevel-capture
 

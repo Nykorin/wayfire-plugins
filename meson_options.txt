@@ -1,0 +1,2 @@
+option('toplevel-capture', type: 'boolean', value: true, description: 'Build the toplevel-capture plugin')
+option('ext-workspace-bridge', type: 'boolean', value: true, description: 'Build the ext-workspace-bridge plugin')

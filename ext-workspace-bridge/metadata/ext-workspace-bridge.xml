@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<wayfire>
+	<plugin name="ext-workspace-bridge">
+		<_short>ext-workspace bridge</_short>
+		<_long>Exposes Wayfire's per-output workspace grid to clients through the ext_workspace_v1 protocol (one group per output, one workspace per grid cell).</_long>
+		<category>Utility</category>
+	</plugin>
+</wayfire>

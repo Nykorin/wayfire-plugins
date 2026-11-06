@@ -9,6 +9,9 @@ Each bullet starts with the file it touches.
 ## [2026-11-06]
 
 ### Added
+- **ext-workspace-bridge/:** The ext-workspace-bridge plugin (Wayfire's per-output workspace grids over ext_workspace_v1, for Noctalia's Workspace widget), moved here from system-update's dotfiles/wayfire/shared/plugins; built as a subdir of the shared build, with C++23 set for it alone *(Claude, directed by user)*
+- **meson_options.txt, meson.build:** A boolean option per plugin (`-Dtoplevel-capture=false`, `-Dext-workspace-bridge=false`) to leave it out; toplevel-capture's own dependencies are only looked up when it's built *(Claude, directed by user)*
+- **README.md:** The ext-workspace-bridge section and the build options *(Claude, directed by user)*
 - **LICENSE:** The MIT License, Wayfire's own text with the copyright line for this repo *(Claude, directed by user)*
 - **toplevel-capture/src/toplevel-capture.cpp:** A Wayfire plugin implementing ext-foreign-toplevel-image-capture-source-v1, which Wayfire 0.11 lacks, so clients of ext-image-copy-capture-v1 (Noctalia's window switcher previews) can capture single windows. Each window's surfaces and server-side decoration are rendered into an off-screen buffer and copied into the client's shm buffer; while a session runs the window counts as visible, so captures stay live on other workspaces. Needs the ext-toplevel plugin *(Claude, directed by user)*
 - **toplevel-capture/tests/capture-toplevels.c:** A test client that captures every window through the protocol into PPM files *(Claude, directed by user)*
@@ -19,4 +22,8 @@ Each bullet starts with the file it touches.
 - **meson.build:** Declares the MIT license and LICENSE file, which needs meson 1.1 or newer *(Claude, directed by user)*
 - **README.md:** A License section, crediting the snapshot render code adapted from Wayfire *(Claude, directed by user)*
 - **toplevel-capture/src/toplevel-capture.cpp:** render_snapshot() now notes that it's adapted from Wayfire's view_interface_t::take_snapshot(), with Wayfire's copyright and MIT License *(Claude, directed by user)*
+
+### Fixed
+- **ext-workspace-bridge/src/ext-workspace-bridge.cpp:** A grid size change (vwidth/vheight edited while Wayfire runs) now reaches clients right away: Wayfire 0.11 emits workspace_grid_changed_signal only on the workspace set, not the output, so the plugin follows the output's current set and reconnects when it's swapped. Before, Noctalia kept the old workspace count until the next workspace switch *(Claude, directed by user)*
+- **ext-workspace-bridge/src/ext-workspace-bridge.cpp:** The header no longer says the code was never compiled, and the VERIFY notes are gone: it builds without warnings against Wayfire 0.11 / wlroots 0.20 and has been in use *(Claude, directed by user)*
 
