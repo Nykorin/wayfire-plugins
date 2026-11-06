@@ -230,6 +230,8 @@ class view_capture_source_t
         }
     }
 
+    // Adapted from view_interface_t::take_snapshot() in Wayfire's src/view/view.cpp,
+    // Copyright (c) 2018 Iliya Bozhinov, MIT License
     bool render_snapshot()
     {
         auto output = view->get_output();

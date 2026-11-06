@@ -14,3 +14,6 @@ Each bullet starts with the file it touches.
 - **meson.build, toplevel-capture/meson.build:** Builds the plugins against the installed Wayfire and wlroots, installing to lib/wayfire and share/wayfire/metadata under the prefix *(Claude, directed by user)*
 - **README.md:** Building, installing and what toplevel-capture does and doesn't do *(Claude, directed by user)*
 
+### Changed
+- **toplevel-capture/src/toplevel-capture.cpp:** render_snapshot() now notes that it's adapted from Wayfire's view_interface_t::take_snapshot(), with Wayfire's copyright and MIT License *(Claude, directed by user)*
+
