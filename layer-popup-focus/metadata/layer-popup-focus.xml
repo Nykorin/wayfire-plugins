@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<wayfire>
+	<plugin name="layer-popup-focus">
+		<_short>Layer Popup Focus</_short>
+		<_long>Gives keyboard focus to menus that grab input from layer surfaces without keyboard focus (e.g. lxqt-panel's menus), which Wayfire 0.11 leaves unfocused. Prototype, untested.</_long>
+		<category>Utility</category>
+		<option name="clients" type="string">
+			<_short>Clients</_short>
+			<_long>Space-separated process names whose layer-surface popups get keyboard focus. Empty applies it to every client.</_long>
+			<default>lxqt-panel</default>
+		</option>
+	</plugin>
+</wayfire>

@@ -9,6 +9,9 @@ Each bullet starts with the file it touches.
 ## [2026-11-06]
 
 ### Added
+- **layer-popup-focus/src/layer-popup-focus.cpp:** A prototype plugin that gives keyboard focus back to grabbing popups of layer surfaces without keyboard focus (lxqt-panel's menus, unfocused since Wayfire 0.11's f7f5461b), limited to the processes in its `clients` option. It enters the popup's surface on the wlr_seat at map and hands focus back when the popup goes away. Compiles against Wayfire 0.11 / wlroots 0.20; never run *(Claude, directed by user)*
+- **layer-popup-focus/meson.build, layer-popup-focus/metadata/layer-popup-focus.xml:** Its own meson project and option metadata, kept out of the shared build *(Claude, directed by user)*
+- **README.md:** The layer-popup-focus section, marked as an untested prototype: how it works, how to build and test it, and what it doesn't cover *(Claude, directed by user)*
 - **ext-workspace-bridge/:** The ext-workspace-bridge plugin (Wayfire's per-output workspace grids over ext_workspace_v1, for Noctalia's Workspace widget), moved here from system-update's dotfiles/wayfire/shared/plugins; built as a subdir of the shared build, with C++23 set for it alone *(Claude, directed by user)*
 - **meson_options.txt, meson.build:** A boolean option per plugin (`-Dtoplevel-capture=false`, `-Dext-workspace-bridge=false`) to leave it out; toplevel-capture's own dependencies are only looked up when it's built *(Claude, directed by user)*
 - **README.md:** The ext-workspace-bridge section and the build options *(Claude, directed by user)*
