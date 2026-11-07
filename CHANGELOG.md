@@ -22,6 +22,7 @@ Each bullet starts with the file it touches.
 - **README.md:** Building, installing and what toplevel-capture does and doesn't do *(Claude, directed by user)*
 
 ### Changed
+- **README.md:** Each plugin's section (ext-workspace-bridge, toplevel-capture, layer-popup-focus) is a collapsible details block with its heading as the summary, so the page opens on the plugin table and the build instructions. Each block keeps an anchor with the old heading's name, so the table's links still work *(Claude, directed by user)*
 - **meson.build:** Declares the MIT license and LICENSE file, which needs meson 1.1 or newer *(Claude, directed by user)*
 - **README.md:** A License section, crediting the snapshot render code adapted from Wayfire *(Claude, directed by user)*
 - **toplevel-capture/src/toplevel-capture.cpp:** render_snapshot() now notes that it's adapted from Wayfire's view_interface_t::take_snapshot(), with Wayfire's copyright and MIT License *(Claude, directed by user)*
