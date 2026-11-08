@@ -1,300 +1,255 @@
-// ext-workspace-bridge: expose Wayfire's workspace grids via ext_workspace_v1.
+// ext-workspace-bridge: Wayfire's workspace grids over ext_workspace_v1, for
+// Noctalia's Workspace widget and other ext-workspace clients.
 //
-// Model: one ext-workspace *group* per output, one ext-workspace *workspace*
-// per cell of that output's workspace grid.
+// Based on Wayfire's own ext-workspace plugin (plugins/protocols/ext-workspace.cpp,
+// added in a352aa3b, PR #3092, not in a release as of 0.11), Copyright (c) 2018
+// Iliya Bozhinov and Wayfire contributors, MIT License. Changes from it:
+// - Workspaces are named 1, 2, 3, ... row by row, instead of
+//   "<output>:workspace-X-Y"; clients like Noctalia label them by name.
+// - Coordinates are (row, column), so clients that sort by them (Noctalia does)
+//   order the grid the way Wayfire's own switching does: 1 2 3 / 4 5 6.
+// - The capabilities passed to wlr_ext_workspace_handle_v1_create() are
+//   capability flags (activate only), not the state flags ACTIVE | HIDDEN, which
+//   advertised removal that isn't supported.
+// - The protocol manager lives as long as the plugin, not as long as the last
+//   per-output instance, so outputs going away and coming back don't create a
+//   second ext_workspace_v1 global.
 //
-// Every signal handler just calls refresh(), which reconciles protocol state
-// against Wayfire's real state, so a signal firing at an unexpected time can't
-// leave it out of step.
-//
-// Built against Wayfire 0.11 / wlroots 0.20. Wayfire emits
-// workspace_changed_signal on both the output and its workspace set, but
-// workspace_grid_changed_signal only on the workspace set, so that one is
-// followed through the output's current set.
+// Model: one workspace group per output, one workspace per cell of that
+// output's workspace grid. Activate requests go through Wayfire's normal
+// switching path (vswitch animations etc.).
 
-#include <cstddef>
-#include <memory>
+#include <wayfire/per-output-plugin.hpp>
+#include <wayfire/core.hpp>
+#include <wayfire/util.hpp>
+#include <wayfire/output.hpp>
+#include <wayfire/workspace-set.hpp>
+#include <wayfire/signal-definitions.hpp>
+#include <wayfire/plugins/common/shared-core-data.hpp>
+
 #include <string>
 #include <vector>
 
-#include <wayfire/core.hpp>
-#include <wayfire/output.hpp>
-#include <wayfire/output-layout.hpp>
-#include <wayfire/plugin.hpp>
-#include <wayfire/signal-definitions.hpp>
-#include <wayfire/signal-provider.hpp>
-#include <wayfire/util.hpp>
-#include <wayfire/workspace-set.hpp>
-
 extern "C"
 {
-#include <wayland-server-core.h>
 #include <wlr/types/wlr_ext_workspace_v1.h>
 }
 
-class ext_workspace_bridge_t : public wf::plugin_interface_t
+namespace wf
 {
-  struct cell_t
-  {
-    wlr_ext_workspace_handle_v1 *handle = nullptr;
-    wf::point_t pos{0, 0};
-  };
+struct workspace_handle_data
+{
+    point_t grid_pos;
+};
 
-  struct out_state_t
-  {
-    wf::output_t *output = nullptr;
-    wlr_ext_workspace_group_handle_v1 *group = nullptr;
-    wf::dimensions_t grid{0, 0};
-    std::vector<std::unique_ptr<cell_t>> cells;
+class ext_workspaces_intergration;
 
-    // Per-output signal connections.
-    wf::signal::connection_t<wf::workspace_changed_signal> on_ws_changed;
-    wf::signal::connection_t<wf::workspace_grid_changed_signal> on_grid_changed;
-    wf::signal::connection_t<wf::workspace_set_changed_signal> on_wset_changed;
-  };
-
-    wlr_ext_workspace_manager_v1 *manager = nullptr;
-    std::vector<std::unique_ptr<out_state_t>> outputs;
+class wlr_ext_workspaces_manager : public custom_data_t
+{
+  public:
+    wlr_ext_workspace_manager_v1 *manager;
     wf::wl_listener_wrapper on_commit;
 
-    wf::signal::connection_t<wf::output_added_signal> on_output_added = [this] (wf::output_added_signal *ev)
-    {
-        add_output(ev->output);
-    };
-
-    wf::signal::connection_t<wf::output_removed_signal> on_output_removed = [this] (wf::output_removed_signal *ev)
-    {
-        remove_output(ev->output);
-    };
-
-  public:
-    void init() override
+    wlr_ext_workspaces_manager()
     {
         manager = wlr_ext_workspace_manager_v1_create(wf::get_core().display, 1);
-        if (!manager)
-        {
-            LOGE("ext-workspace-bridge: failed to create ext_workspace_manager_v1");
-            return;
-        }
-
-        // Client requests (activate, ...) arrive batched via the manager's
-        // commit event in wlroots 0.19+.
         on_commit.set_callback([this] (void *data)
         {
-            handle_commit((wlr_ext_workspace_v1_commit_event*)data);
+            handle_commit(static_cast<wlr_ext_workspace_v1_commit_event*>(data));
         });
         on_commit.connect(&manager->events.commit);
+    }
 
-        wf::get_core().output_layout->connect(&on_output_added);
-        wf::get_core().output_layout->connect(&on_output_removed);
+    void handle_commit(wlr_ext_workspace_v1_commit_event *event);
+};
 
-        for (auto *o : wf::get_core().output_layout->get_outputs())
+class ext_workspaces_intergration : public wf::per_output_plugin_instance_t
+{
+    wf::shared_data::ref_ptr_t<wlr_ext_workspaces_manager> manager;
+    wlr_ext_workspace_group_handle_v1 *group = nullptr;
+    // workspaces[row][column]
+    std::vector<std::vector<wlr_ext_workspace_handle_v1*>> workspaces;
+
+    wf::signal::connection_t<wf::workspace_changed_signal> on_workspace_changed =
+        [this] (wf::workspace_changed_signal *ev)
+    {
+        set_active(ev->old_viewport, false);
+        set_active(ev->new_viewport, true);
+    };
+
+    wf::signal::connection_t<wf::workspace_set_changed_signal> on_wset_changed =
+        [this] (wf::workspace_set_changed_signal *ev)
+    {
+        on_grid_changed.disconnect();
+        rebuild_workspaces();
+        if (output->wset())
         {
-            add_output(o);
+            output->wset()->connect(&on_grid_changed);
         }
+    };
 
-        LOGI("ext-workspace-bridge: ext_workspace_v1 global registered");
-    }
-
-    void fini() override
+    // Emitted only on the workspace set, not the output
+    wf::signal::connection_t<wf::workspace_grid_changed_signal> on_grid_changed =
+        [this] (wf::workspace_grid_changed_signal *ev)
     {
-        on_output_added.disconnect();
-        on_output_removed.disconnect();
-        on_commit.disconnect();
-        while (!outputs.empty())
+        rebuild_workspaces();
+    };
+
+    void set_active(point_t pos, bool active)
+    {
+        if ((pos.y >= 0) && (pos.y < (int)workspaces.size()) &&
+            (pos.x >= 0) && (pos.x < (int)workspaces[pos.y].size()))
         {
-            teardown(*outputs.back());
-            outputs.pop_back();
-        }
-        // The manager global is owned by the wl_display and destroyed with it.
-    }
-
-    bool is_unloadable() override
-    {
-        // The global can't be cleanly unregistered while clients are bound.
-        return false;
-    }
-
-  private:
-    void handle_commit(wlr_ext_workspace_v1_commit_event *ev)
-    {
-        for (wl_list *l = ev->requests->next; l != ev->requests; l = l->next)
-        {
-            auto *req = reinterpret_cast<wlr_ext_workspace_v1_request*>(
-                (char*)l - offsetof(wlr_ext_workspace_v1_request, link));
-            if ((req->type != WLR_EXT_WORKSPACE_V1_REQUEST_ACTIVATE) ||
-                !req->activate.workspace)
-            {
-                continue;
-            }
-
-            for (auto& st : outputs)
-            {
-                for (auto& c : st->cells)
-                {
-                    if (c->handle == req->activate.workspace)
-                    {
-                        // Goes through Wayfire's normal switching path
-                        // (vswitch animations etc.).
-                        st->output->wset()->request_workspace(c->pos);
-                    }
-                }
-            }
+            wlr_ext_workspace_handle_v1_set_active(workspaces[pos.y][pos.x], active);
         }
     }
 
-    void add_output(wf::output_t *o)
+    void rebuild_workspaces()
     {
-        if (!manager || !o || find(o))
-        {
-            return;
-        }
-
-        auto st = std::make_unique<out_state_t>();
-        st->output = o;
-
-        // No group-level capabilities (creating or assigning workspaces)
-        st->group = wlr_ext_workspace_group_handle_v1_create(manager, 0);
-        wlr_ext_workspace_group_handle_v1_output_enter(st->group, o->handle);
-
-        auto *raw = st.get();
-        st->on_ws_changed = [this, raw] (wf::workspace_changed_signal*) { refresh(*raw); };
-        st->on_grid_changed = [this, raw] (wf::workspace_grid_changed_signal*) { refresh(*raw); };
-        // A new workspace set (e.g. from the wsets plugin) brings its own grid
-        // and current workspace
-        st->on_wset_changed = [this, raw] (wf::workspace_set_changed_signal*)
-        {
-            follow_wset(*raw);
-            refresh(*raw);
-        };
-
-        o->connect(&st->on_ws_changed);
-        o->connect(&st->on_wset_changed);
-        follow_wset(*st);
-
-        outputs.push_back(std::move(st));
-        refresh(*outputs.back());
+        teardown_workspaces();
+        setup_workspaces();
     }
 
-    // The grid signal is only emitted on the workspace set
-    void follow_wset(out_state_t& st)
+    void setup_workspaces()
     {
-        st.on_grid_changed.disconnect();
-        if (auto wset = st.output->wset())
-        {
-            wset->connect(&st.on_grid_changed);
-        }
-    }
-
-    void remove_output(wf::output_t *o)
-    {
-        for (auto it = outputs.begin(); it != outputs.end(); ++it)
-        {
-            if ((*it)->output == o)
-            {
-                teardown(**it);
-                outputs.erase(it);
-                return;
-            }
-        }
-    }
-
-    out_state_t *find(wf::output_t *o)
-    {
-        for (auto& st : outputs)
-        {
-            if (st->output == o)
-            {
-                return st.get();
-            }
-        }
-
-        return nullptr;
-    }
-
-    void destroy_cells(out_state_t& st)
-    {
-        for (auto& c : st.cells)
-        {
-            wlr_ext_workspace_handle_v1_destroy(c->handle);
-        }
-
-        st.cells.clear();
-    }
-
-    void teardown(out_state_t& st)
-    {
-        st.on_ws_changed.disconnect();
-        st.on_grid_changed.disconnect();
-        st.on_wset_changed.disconnect();
-        destroy_cells(st);
-        if (st.group)
-        {
-            wlr_ext_workspace_group_handle_v1_destroy(st.group);
-            st.group = nullptr;
-        }
-    }
-
-    // Recreate the workspace handles for this output's grid.
-    void rebuild(out_state_t& st, wf::dimensions_t grid)
-    {
-        destroy_cells(st);
-        st.grid = grid;
-
-        const std::string out_name = st.output->to_string();
-
-        for (int y = 0; y < grid.height; y++)
-        {
-            for (int x = 0; x < grid.width; x++)
-            {
-                auto cell = std::make_unique<cell_t>();
-                cell->pos = {x, y};
-
-                // IDs must be unique across the whole manager, so include the output.
-                const std::string id = out_name + ":" + std::to_string(x) + "," + std::to_string(y);
-                // Human-visible name: 1-based, row-major (matches how most
-                // widgets number a flat list of workspaces).
-                const std::string name = std::to_string(y * grid.width + x + 1);
-
-                // Clients can only activate workspaces, not remove or move them
-                cell->handle = wlr_ext_workspace_handle_v1_create(manager, id.c_str(),
-                    EXT_WORKSPACE_HANDLE_V1_WORKSPACE_CAPABILITIES_ACTIVATE);
-                wlr_ext_workspace_handle_v1_set_group(cell->handle, st.group);
-                wlr_ext_workspace_handle_v1_set_name(cell->handle, name.c_str());
-
-                // Row-major: coordinates[0] = row, coordinates[1] = column. Clients such
-                // as Noctalia sort workspaces lexicographically by this array, so this
-                // yields 1,2,3 / 4,5,6 order for a 3x2 grid instead of 1,4,2,5,3,6.
-                const uint32_t coords[2] = {(uint32_t)y, (uint32_t)x};
-                wlr_ext_workspace_handle_v1_set_coordinates(cell->handle, coords, 2);
-
-                st.cells.push_back(std::move(cell));
-            }
-        }
-    }
-
-    // Reconcile protocol state with Wayfire's state for one output.
-    void refresh(out_state_t& st)
-    {
-        auto wset = st.output->wset();
+        auto wset = output->wset();
         if (!wset)
         {
             return;
         }
 
-        const auto grid = wset->get_workspace_grid_size();
-        const auto cur  = wset->get_current_workspace();
+        dimensions_t ws_dim = wset->get_workspace_grid_size();
+        workspaces.resize(ws_dim.height,
+            std::vector<wlr_ext_workspace_handle_v1*>(ws_dim.width, nullptr));
 
-        if ((grid.width != st.grid.width) || (grid.height != st.grid.height) || st.cells.empty())
+        for (int i = 0; i < ws_dim.height; i++)
         {
-            rebuild(st, grid);
+            for (int j = 0; j < ws_dim.width; j++)
+            {
+                // IDs must be unique across the whole manager, so they include
+                // the output
+                std::string id =
+                    output->to_string() + ":workspace-" +
+                    std::to_string(j) + "-" + std::to_string(i);
+                // Shown by clients: 1-based, row by row
+                std::string name = std::to_string(i * ws_dim.width + j + 1);
+
+                workspaces[i][j] = wlr_ext_workspace_handle_v1_create(manager->manager,
+                    id.c_str(), EXT_WORKSPACE_HANDLE_V1_WORKSPACE_CAPABILITIES_ACTIVATE);
+                wlr_ext_workspace_handle_v1_set_group(workspaces[i][j], group);
+                wlr_ext_workspace_handle_v1_set_name(workspaces[i][j], name.c_str());
+
+                // (row, column): clients sorting by coordinates get 1 2 3 / 4 5 6
+                uint32_t coords[2] = {(uint32_t)i, (uint32_t)j};
+                wlr_ext_workspace_handle_v1_set_coordinates(
+                    workspaces[i][j], coords, 2);
+
+                auto *ws_data = new workspace_handle_data();
+                ws_data->grid_pos = {j, i};
+                workspaces[i][j]->data = ws_data;
+            }
         }
 
-        for (auto& c : st.cells)
+        set_active(wset->get_current_workspace(), true);
+    }
+
+    void teardown_workspaces()
+    {
+        for (auto& row : workspaces)
         {
-            wlr_ext_workspace_handle_v1_set_active(c->handle, c->pos == cur);
+            for (auto *ws : row)
+            {
+                delete static_cast<workspace_handle_data*>(ws->data);
+                wlr_ext_workspace_handle_v1_destroy(ws);
+            }
+        }
+
+        workspaces.clear();
+    }
+
+  public:
+    void handle_activate(point_t grid_pos)
+    {
+        if (auto wset = output->wset())
+        {
+            wset->request_workspace(grid_pos);
+        }
+    }
+
+    void init() override
+    {
+        group = wlr_ext_workspace_group_handle_v1_create(manager->manager, 0);
+        group->data = this;
+
+        wlr_ext_workspace_group_handle_v1_output_enter(group, output->handle);
+
+        setup_workspaces();
+
+        output->connect(&on_workspace_changed);
+        output->connect(&on_wset_changed);
+        if (output->wset())
+        {
+            output->wset()->connect(&on_grid_changed);
+        }
+    }
+
+    void fini() override
+    {
+        if (group)
+        {
+            group->data = nullptr;
+        }
+
+        teardown_workspaces();
+
+        if (group)
+        {
+            wlr_ext_workspace_group_handle_v1_destroy(group);
+            group = nullptr;
         }
     }
 };
 
-DECLARE_WAYFIRE_PLUGIN(ext_workspace_bridge_t);
+void wlr_ext_workspaces_manager::handle_commit(wlr_ext_workspace_v1_commit_event *event)
+{
+    wlr_ext_workspace_v1_request *req, *tmp;
+    wl_list_for_each_safe(req, tmp, event->requests, link)
+    {
+        if (req->type != WLR_EXT_WORKSPACE_V1_REQUEST_ACTIVATE)
+        {
+            // Creating, removing and assigning workspaces aren't advertised
+            continue;
+        }
+
+        auto *ws = req->activate.workspace;
+        if (!ws || !ws->group)
+        {
+            continue;
+        }
+
+        auto *ws_data     = static_cast<workspace_handle_data*>(ws->data);
+        auto *integration = static_cast<ext_workspaces_intergration*>(ws->group->data);
+        if (ws_data && integration)
+        {
+            integration->handle_activate(ws_data->grid_pos);
+        }
+    }
+}
+
+class ext_workspaces_plugin_t : public wf::per_output_plugin_t<wf::ext_workspaces_intergration>
+{
+    // Holds the manager for the plugin's whole life: with only the per-output
+    // instances holding it, losing every output would free it, and the next
+    // output would create a second ext_workspace_v1 global (wlroots can't
+    // destroy the first one)
+    wf::shared_data::ref_ptr_t<wlr_ext_workspaces_manager> manager;
+
+  public:
+    bool is_unloadable() override
+    {
+        return false;
+    }
+};
+} // namespace wf
+
+DECLARE_WAYFIRE_PLUGIN(wf::ext_workspaces_plugin_t);

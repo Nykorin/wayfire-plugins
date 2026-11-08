@@ -6,6 +6,15 @@ Contributors: user (design & direction), Claude (plugins and documentation)
 
 Each bullet starts with the file it touches.
 
+## [2026-11-08]
+
+### Changed
+- **ext-workspace-bridge/src/ext-workspace-bridge.cpp:** Rewritten on top of Wayfire's ext-workspace plugin (a352aa3b, PR #3092, MIT; not in a release yet), a per-output plugin, keeping what the bridge did differently so Noctalia's widget is unchanged: workspaces named 1, 2, 3 row by row, (row, column) coordinates, and activate as the only capability (upstream passes the state flags ACTIVE | HIDDEN, which offered removal). Tested in the Noctalia sandbox on a 3x2 grid: the bar, Noctalia's next-workspace and a live change to 2x2 behave as before *(Claude, directed by user)*
+- **README.md:** The ext-workspace-bridge section describes the upstream-based plugin, how it differs from upstream's, and not to load both; the License section credits upstream's plugin *(Claude, directed by user)*
+
+### Fixed
+- **ext-workspace-bridge/src/ext-workspace-bridge.cpp:** The protocol manager is held for the plugin's whole life, so losing every output and getting one back doesn't create a second ext_workspace_v1 global, as upstream's plugin would (untested: the sandbox has one output that can't go away) *(Claude, directed by user)*
+
 ## [2026-11-06]
 
 ### Added

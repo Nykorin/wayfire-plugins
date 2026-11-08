@@ -33,8 +33,15 @@ build/toplevel-capture/capture-toplevels /tmp/caps 2   # 2 frames per window; th
 
 Wayfire 0.11 doesn't offer `ext_workspace_v1`, which Noctalia's Workspace widget reads. This plugin offers it through wlroots' implementation (`wlr/types/wlr_ext_workspace_v1.h`).
 
-- **Model:** one workspace group per output, one workspace per cell of that output's workspace grid.
-- **Staying in step:** every Wayfire signal it listens to just reconciles the protocol state against Wayfire's actual state, so a signal arriving at an unexpected time doesn't leave it out of date.
+It's based on Wayfire's own `ext-workspace` plugin ([PR #3092](https://github.com/WayfireWM/wayfire/pull/3092), merged after 0.11, so not in a release yet), changed so Noctalia shows the grid the way Wayfire switches through it:
+
+- **Model:** one workspace group per output, one workspace per cell of that output's workspace grid. Activating a workspace goes through Wayfire's normal switching, with vswitch's animation.
+- **Names:** `1`, `2`, `3`… row by row. Upstream names them `<output>:workspace-X-Y`, and Noctalia labels every one "W".
+- **Coordinates:** (row, column). Noctalia sorts workspaces by them, so upstream's (column, row) puts its dots and its next/previous in column order.
+- **Capabilities:** activate only. Upstream passes the state flags ACTIVE | HIDDEN as capabilities, which offers workspace removal it doesn't do.
+- **One global:** the protocol manager lives as long as the plugin. Upstream frees it with the last output, and the next output then creates a second `ext_workspace_v1` global.
+- **Grid changes** (`vwidth`/`vheight` edited while Wayfire runs) and workspace sets swapped on an output rebuild that output's workspaces straight away.
+- Don't load it together with upstream's `ext-workspace` (Wayfire 0.12 and later): each offers its own `ext_workspace_v1` global.
 - Built with C++23, the standard Wayfire itself is built with; the other plugins use C++17.
 
 </details>
@@ -91,4 +98,4 @@ To try a build without installing it, install to a prefix (`meson setup build-te
 
 ## License
 
-MIT, the same license as Wayfire; see [LICENSE](LICENSE). `toplevel-capture`'s off-screen render is adapted from Wayfire's `view_interface_t::take_snapshot()` (Copyright (c) 2018 Iliya Bozhinov, MIT), as noted in the source.
+MIT, the same license as Wayfire; see [LICENSE](LICENSE). `toplevel-capture`'s off-screen render is adapted from Wayfire's `view_interface_t::take_snapshot()` (Copyright (c) 2018 Iliya Bozhinov, MIT), as noted in the source. `ext-workspace-bridge` is based on Wayfire's `ext-workspace` plugin (commit `a352aa3b`, MIT), as noted in its source.
