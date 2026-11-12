@@ -90,7 +90,7 @@ ninja -C build
 sudo ninja -C build install     # sudo ninja -C build uninstall to remove
 ```
 
-Every plugin is built by default; leave one out with `-D<name>=false` at `meson setup` (e.g. `-Dtoplevel-capture=false` builds only ext-workspace-bridge, without toplevel-capture's extra dependencies). system-update's `build-sources.sh` builds ext-workspace-bridge for Wayfire + Noctalia this way. The exception is [layer-popup-focus](#layer-popup-focus-prototype-untested), a prototype with its own build.
+Every plugin is built by default; leave one out with `-D<name>=false` at `meson setup` (e.g. `-Dtoplevel-capture=false` builds only ext-workspace-bridge, without toplevel-capture's extra dependencies). system-install's sources stage (`system-install.sh`) builds ext-workspace-bridge for Wayfire + Noctalia this way. The exception is [layer-popup-focus](#layer-popup-focus-prototype-untested), a prototype with its own build.
 
 The plugins go to `/usr/lib/wayfire` and their metadata to `/usr/share/wayfire/metadata`. Pacman doesn't track these files, so after a Wayfire or wlroots update, rebuild and reinstall: a plugin built against the old version may fail to load, and Wayfire only notes that in its log. Then add the plugin's name to `plugins =` in `wayfire.ini`.
 

@@ -6,6 +6,11 @@ Contributors: user (design & direction), Claude (plugins and documentation)
 
 Each bullet starts with the file it touches.
 
+## [2026-11-12]
+
+### Changed
+- **README.md:** The build options note names system-install's sources stage (`system-install.sh`) as what builds ext-workspace-bridge with `-Dtoplevel-capture=false`; system-update's build-sources.sh was merged into it and the project renamed *(Claude, directed by user)*
+
 ## [2026-11-08]
 
 ### Changed
